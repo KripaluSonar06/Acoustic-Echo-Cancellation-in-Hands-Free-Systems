@@ -1,36 +1,84 @@
-import numpy as np
+classdef coherence_dtd < handle
+    %COHERENCEDTD  Coherence-based Double Talk Detector
+    %
+    % Detects double-talk using magnitude-squared coherence
+    % between far-end signal and microphone signal (frequency domain)
 
-class CoherenceDTD:
-    
-    # coherence based double talk detector 
-    def __init__(self,threshold,smoothing=0.9,epsilon=1e-10):
-        self.threshold = threshold
-        self.smoothing = smoothing
-        self.epsilon = epsilon
-        self.Pxx = None
-        self.Pdd = None
-        self.Pxd = None
+    properties
+        threshold
+        smoothing
+        epsilon
+        Pxx    % Smoothed power spectral density of X
+        Pdd    % Smoothed power spectral density of D
+        Pxd    % Smoothed cross power spectral density
+    end
 
-    def detect(self, X_f, D_f):
-        # detects double talk based on magnitude squred coherence
-        if self.Pxx is None:
-            self.Pxx = np.zeros_like(X_f,dtype=np.float32)
-            self.Pdd = np.zeros_like(D_f,dtype=np.float32)
-            self.Pxd =np.zeros_like(X_f, dtype=np.complex64)
+    methods
+        function obj = coherence_dtd(threshold, smoothing, epsilon)
+            % Constructor
 
-        abs_X2 = np.abs(X_f)**2
-        abs_D2 = np.abs(D_f)**2
-        cross_XD = X_f * np.conj(D_f)
-        self.Pxx= self.smoothing*self.Pxx + (1-self.smoothing)*abs_X2
-        self.Pdd = self.smoothing*self.Pdd + (1-self.smoothing)*abs_D2
-        self.Pxd = self.smoothing*self.Pxd + (1-self.smoothing)*cross_XD
-        coherence_numerator = np.abs(self.Pxd)**2
-        coherence_denominator = self.Pxx *self.Pdd + self.epsilon
-        coherence = coherence_numerator/coherence_denominator
-        avg_coherence = np.mean(coherence)
+            if nargin < 3
+                epsilon = 1e-10;
+            end
 
-        is_double_talk = False
-        if avg_coherence < self.threshold:
-            is_double_talk=True
+            obj.threshold = threshold;
+            obj.smoothing = smoothing;
+            obj.epsilon   = epsilon;
 
-        return is_double_talk
+            obj.Pxx = [];
+            obj.Pdd = [];
+            obj.Pxd = [];
+        end
+
+        function is_double_talk = detect(obj, X_f, D_f)
+            %DETECT  Detect double-talk using magnitude-squared coherence
+            %
+            % Inputs:
+            %   X_f : [1 x numBins] far-end spectrum
+            %   D_f : [1 x numBins] microphone spectrum
+            %
+            % Output:
+            %   is_double_talk : boolean flag
+
+            % Lazy initialization
+            if isempty(obj.Pxx)
+                obj.Pxx = zeros(size(X_f), 'single');
+                obj.Pdd = zeros(size(D_f), 'single');
+                obj.Pxd = complex( ...
+                    zeros(size(X_f), 'single'), ...
+                    zeros(size(X_f), 'single'));
+            end
+
+            % Power spectra
+            abs_X2 = abs(X_f).^2;
+            abs_D2 = abs(D_f).^2;
+
+            % Cross power spectrum
+            cross_XD = X_f .* conj(D_f);
+
+            % Exponential smoothing
+            obj.Pxx = obj.smoothing * obj.Pxx + ...
+                      (1 - obj.smoothing) * abs_X2;
+
+            obj.Pdd = obj.smoothing * obj.Pdd + ...
+                      (1 - obj.smoothing) * abs_D2;
+
+            obj.Pxd = obj.smoothing * obj.Pxd + ...
+                      (1 - obj.smoothing) * cross_XD;
+
+            % Magnitude-squared coherence
+            coherence_numerator   = abs(obj.Pxd).^2;
+            coherence_denominator = obj.Pxx .* obj.Pdd + obj.epsilon;
+
+            coherence = coherence_numerator ./ coherence_denominator;
+
+            avg_coherence = mean(coherence);
+
+            % Decision logic
+            is_double_talk = false;
+            if avg_coherence < obj.threshold
+                is_double_talk = true;
+            end
+        end
+    end
+end

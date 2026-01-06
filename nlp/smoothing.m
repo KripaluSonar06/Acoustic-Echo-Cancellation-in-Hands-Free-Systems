@@ -1,22 +1,45 @@
-import numpy as np
+classdef smoothing < handle
+    %GAINSMOOTHER  Temporal exponential smoothing for frequency-domain gains
+    %
+    % Applies exponential moving average (EMA) to NLP gain vectors
 
-class GainSmoother:
-    #implement tempioral exponential smoothing for frequency domain gains
+    properties
+        num_bins
+        alpha
+        prev_gain
+    end
 
-    def __init__(self,num_bins,alpha=0.6):
-        self.num_bins = num_bins
-        self.alpha = alpha
-        self.prev_gain = np.ones(num_bins,dtype=np.float32)
+    methods
+        function obj = smoothing(num_bins, alpha)
+            % Constructor
 
-    def smooth(self,current_gain):
-        # apply exponential moving average to input gain vector
+            if nargin < 2
+                alpha = 0.6;
+            end
 
-        if current_gain.shape[0] != self.num_bins:
-            raise ValueError(f"Input gain size {current_gain.shape[0]} does not match initialized size {self.num_bins}")
-        
-        smoothed_gain = (self.alpha * self.prev_gain) + (1-self.alpha)*current_gain
+            obj.num_bins  = num_bins;
+            obj.alpha     = alpha;
+            obj.prev_gain = ones(1, num_bins, 'single');
+        end
 
-        self.prev_gain = smoothed_gain
-        return smoothed_gain
-    
-    
+        function smoothed_gain = smooth(obj, current_gain)
+            %SMOOTH  Apply exponential smoothing to gain vector
+            %
+            % Input:
+            %   current_gain : [1 x num_bins] instantaneous gain
+            %
+            % Output:
+            %   smoothed_gain : [1 x num_bins] smoothed gain
+
+            if length(current_gain) ~= obj.num_bins
+                error('Input gain size %d does not match initialized size %d', ...
+                      length(current_gain), obj.num_bins);
+            end
+
+            smoothed_gain = obj.alpha * obj.prev_gain + ...
+                            (1 - obj.alpha) * current_gain;
+
+            obj.prev_gain = smoothed_gain;
+        end
+    end
+end

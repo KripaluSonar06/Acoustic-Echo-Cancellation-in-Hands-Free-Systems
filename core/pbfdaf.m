@@ -1,26 +1,57 @@
-import numpy as np
+classdef pbfdaf < handle
+    %PBFDAF  Partitioned Block Frequency Domain Adaptive Filter
+    %
+    % Implements frequency-domain partitioned adaptive filtering
+    % used for acoustic echo cancellation
 
-class PBFDAF:
-    def __init__(self,num_partitions,fft_size):
-        self.num_partitions = num_partitions
-        self.num_bins = fft_size//2 + 1
-        self.W = np.zeros((num_partitions,self.num_bins),dtype=np.complex64)
-        self.X_history = np.zeros((num_partitions,self.num_bins),dtype=np.complex64)
+    properties
+        num_partitions
+        num_bins
+        W           % [num_partitions x num_bins] complex weights
+        X_history   % [num_partitions x num_bins] input history (frequency domain)
+    end
 
-    def update_input_history(self,X_f):
+    methods
+        function obj = pbfdaf(num_partitions, fft_size)
+            % Constructor
 
-        #updates internal frequency-domain delay line with new input block
-        if X_f.shape[0] != self.num_bins:
-            raise ValueError(f"Input spectrum size {X_f.shape[0]} does not match expected {self.num_bins}")
-        
-        self.X_history = np.roll(self.X_history,1,axis=0)
-        self.X_history[0] = X_f
+            obj.num_partitions = num_partitions;
+            obj.num_bins = fft_size/2 + 1;
 
-    def estimate_echo(self):
+            obj.W = complex( ...
+                zeros(num_partitions, obj.num_bins, 'single'), ...
+                zeros(num_partitions, obj.num_bins, 'single'));
 
-        # computes echo estimate in frequency domain with partitioned convolution
-        Y_f = np.sum(self.W * self.X_history,axis=0)
-        return Y_f
-    
-    
+            obj.X_history = complex( ...
+                zeros(num_partitions, obj.num_bins, 'single'), ...
+                zeros(num_partitions, obj.num_bins, 'single'));
+        end
 
+        function update_input_history(obj, X_f)
+            %UPDATE_INPUT_HISTORY  Update frequency-domain delay line
+            %
+            % Input:
+            %   X_f : [1 x num_bins] current input spectrum
+
+            if length(X_f) ~= obj.num_bins
+                error('Input spectrum size %d does not match expected %d', ...
+                      length(X_f), obj.num_bins);
+            end
+
+            % Shift delay line down (older blocks move down)
+            obj.X_history = circshift(obj.X_history, 1, 1);
+
+            % Insert newest block at the top
+            obj.X_history(1, :) = X_f;
+        end
+
+        function Y_f = estimate_echo(obj)
+            %ESTIMATE_ECHO  Partitioned convolution in frequency domain
+            %
+            % Output:
+            %   Y_f : [1 x num_bins] estimated echo spectrum
+
+            Y_f = sum(obj.W .* obj.X_history, 1);
+        end
+    end
+end
