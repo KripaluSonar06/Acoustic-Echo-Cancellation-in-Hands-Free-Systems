@@ -1,23 +1,22 @@
-function E_enhanced = residual_suppressor(E_f, Y_hat_f, min_gain)
-%RESIDUAL_NLP  Classical residual echo suppression (NLP) in frequency domain
+function gain = residual_suppressor(E_f, Y_hat_f, min_gain)
+%RESIDUAL_SUPPRESSOR  Compute NLP gain (no smoothing)
 %
 % Inputs:
-%   E_f      : error signal spectrum
-%   Y_hat_f  : estimated echo spectrum
-%   min_gain : minimum suppression gain (linear)
+%   E_f      : error spectrum [numBins x 1]
+%   Y_hat_f  : estimated echo spectrum [numBins x 1]
+%   min_gain : minimum allowed gain (linear)
 %
 % Output:
-%   E_enhanced : NLP-processed error spectrum
+%   gain     : instantaneous suppression gain [1 x numBins]
 
-    magnitude_E = abs(E_f);
-    magnitude_Y = abs(Y_hat_f);
+    magnitude_E = abs(E_f(:)).';
+    magnitude_Y = abs(Y_hat_f(:)).';
 
-    aggressiveness = 1.5;
-    est_residual = magnitude_Y .* aggressiveness;
+    aggressiveness = 0.6;
+    est_residual = magnitude_Y * aggressiveness;
 
     epsilon = 1e-10;
     gain = (magnitude_E - est_residual) ./ (magnitude_E + epsilon);
 
-    gain = max(min_gain, min(gain, 1.0));
-    E_enhanced = E_f .* gain;
+    gain = min(max(gain, min_gain), 1.0);
 end
